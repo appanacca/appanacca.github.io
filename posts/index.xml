@@ -1,0 +1,497 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on Nico Lumi</title><link>https://appanacca.github.io/posts/</link><description>Recent content in Posts on Nico Lumi</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Thu, 22 Dec 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://appanacca.github.io/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>A primer on Python CLIs</title><link>https://appanacca.github.io/posts/cli/</link><pubDate>Thu, 22 Dec 2022 00:00:00 +0000</pubDate><guid>https://appanacca.github.io/posts/cli/</guid><description>Intro Command line arguments (CLI)__ are a tool that we can use to parametrize our application whitout the need of any code modification. Imagine that you have written a nice application, that takes several parameters in input and you want to be able to change them when the programm is started by the user. As a junior developper I find myself using some very bad approaches to store local arguments to pass to my application, such as global variables inside the application code.</description><content>
+&lt;img src="https://appanacca.github.io/img/python.jpg" alt="Me thinking" class="center" style="border-radius: 6px" />
+&lt;h1 id="intro">Intro&lt;/h1>
+&lt;p>Command line arguments (CLI)__ are a tool that we can use to parametrize our application whitout the need of any code modification.
+Imagine that you have written a nice application, that takes several parameters in input and you want to be able to change them when the programm is
+started by the user.
+As a junior developper I find myself using some very bad approaches to store local arguments to pass
+to my application, such as global variables inside the application code.&lt;/p>
+&lt;p>When I have started programming as a fulltime job I have seen that my struggles were shared by some other junior colleagues;
+expecially if, like me, they do not come from a computer science background.&lt;/p>
+&lt;p>As usual in the python ecosystem there are a lot of libraries which can be used and the pro/cons can be not obvious at first glance.
+In the following I will use a simple image resizing applicaton to illustrate how to write the CLI interface using some common python libraries.
+I will share some tougts about each implementation and hopefully, this post will save some problemes to someone
+that approaches the topic for the first time.&lt;/p>
+&lt;h2 id="application">Application&lt;/h2>
+&lt;p>Lat&amp;rsquo;s start with the implementation of the image resizing functionality
+This is pretty straightforward to implement with the PIL library:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Resize function&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+from PIL import Image
+def resize(image_path: str, width: int, heigth: int, output_path: str) -&amp;gt; None:
+img = Image.open(image_path)
+img_resized = img.resize((width, heigth)).convert(&amp;#39;RGB&amp;#39;)
+img_resized.save(output_path, &amp;#34;JPEG&amp;#34;)
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;pre>&lt;code>The convert('RGB') part is needed to work well with input
+images that have an alpha channel.
+&lt;/code>&lt;/pre>
+&lt;p>Here below the results of our resizing function on reddit avatar:&lt;/p>
+&lt;figure class="center" >
+&lt;img src="https://appanacca.github.io/img/reddit.png" alt="Me thinking" style="border-radius: 6px" />
+&lt;figcaption class="left" style="color: black" >Original Image&lt;/figcaption>
+&lt;/figure>
+&lt;figure class="center" >
+&lt;img src="https://appanacca.github.io/img/reddit_small.png" alt="Me thinking" style="border-radius: 6px" />
+&lt;figcaption class="left" style="color: black" >Resized image&lt;/figcaption>
+&lt;/figure>
+&lt;h2 id="why-do-i-need-a-cli">Why do I need a CLI?&lt;/h2>
+&lt;p>The above application takes several inputs from the user in order to work. So the developper has to figure out a way to make the user fill up these parameters.
+A common antipattern is to use the same file of the application to add global variables.
+Look if this seems familiar to you:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Resize function&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+if __name__ == &amp;#34;__main__&amp;#34;:
+IMG = &amp;#34;/home/image.jpg&amp;#34;
+OUT = &amp;#34;/home/out_image.jpg&amp;#34;
+SIZE = (256, 128)
+resize(IMG, SIZE, OUT)
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>In this example the inputs to the function call are put directly in the same file as the application code.
+This means that in order to modify any parameters the application code should be accessible by the end user.
+But this is not very practical since we usually share application with PIP, conda or any other package manager that you like.
+There are several good ways to avoid the solution above and make the application more accessible one of which is to
+provide a command line, so let&amp;rsquo;s see how to implement it.&lt;/p>
+&lt;h2 id="what-is-a-cli-">What is a CLI ?&lt;/h2>
+&lt;p>I suppose that any reader had executed the following command at least once:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">bash&lt;/span>
+&lt;span class="collapsable-code__title">Resize function&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-bash" >&lt;code>
+git clone https://github.com/pallets/click.git
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;pre>&lt;code>This is the git command that permits us to clone and download a github repository from its git server.
+&lt;/code>&lt;/pre>
+&lt;p>The command above is a typical example of a CLI, that is simply a very friendly way to process command options in the form of lines of text. Let&amp;rsquo; break down some common terminology:&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>git:&lt;/strong> is a command. It is basically the name of the main program / application to be run.&lt;/li>
+&lt;li>__clone:__is a subcommand. An application can have many subcommands. Think about git commit, git push, git fetch etc&amp;hellip;&lt;/li>
+&lt;li>&lt;strong>github.com/pallets/click.git:&lt;/strong> is a argument or positional argument. It is passed to the subcommand as a parameter.&lt;/li>
+&lt;/ul>
+&lt;p>Look at this other example:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">bash&lt;/span>
+&lt;span class="collapsable-code__title">Resize function&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-bash" >&lt;code>
+git commit -m &amp;#34;a very well written message&amp;#34;
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;ul>
+&lt;li>&lt;strong>git:&lt;/strong> command&lt;/li>
+&lt;li>&lt;strong>commit&lt;/strong>: subcommand&lt;/li>
+&lt;li>&lt;strong>-m&lt;/strong>: name of the parameter, option in CLI terminology&lt;/li>
+&lt;li>&lt;strong>a very well written message&lt;/strong>: value of the parameter (or option)&lt;/li>
+&lt;/ul>
+&lt;p>In this case the parameter is passed by specifyng his name instead of relying just on his position.&lt;/p>
+&lt;p>Think about a function call in which you use positional arguments versus a keyword argument. In the CLI case it is exactly the same.&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Positional VS Keyword&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+# positional
+resize(&amp;#34;/home/image.jpg&amp;#34;, 256, 128, &amp;#34;/home/out_image.jpg&amp;#34;)
+# keyword
+resize(heigth=256, width=128, output_path=&amp;#34;/home/out_image.jpg&amp;#34;, image_path=&amp;#34;/home/image.jpg&amp;#34;)
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>In few words a CLI is just a way to pass parameters to a command (or subcommand). It is important to keep in mind that parameters come in two different flavors:&lt;/p>
+&lt;ul>
+&lt;li>__CLI arguments:__it is the equivalent of a positional argument, so you just put it after the command&lt;/li>
+&lt;li>__CLI options:__think of a keyword argument. In order to pass it to the command you have to specify its name
+usually prefixed with one (-) or two dashes (&amp;ndash;)&lt;/li>
+&lt;/ul>
+&lt;p>Writing a good CLI means also to choose between these two different ways to pass parameters. A good CLI library gave the developper the choice between pass the parameters as options or arguments. But there are also other general capabilities that you want from a library:&lt;/p>
+&lt;ul>
+&lt;li>__help:__the CLI should provide an helper function (that is usually invoked by &lt;strong>&amp;ndash;help&lt;/strong> or &lt;strong>-h&lt;/strong>) that helps the user to
+figure out what is the meaning of all the parameters and the command itself&lt;/li>
+&lt;li>__short names:__options parameters are always prefixed with their names, like &lt;strong>&amp;ndash;input&lt;/strong>. However of the name is
+particularly long you want to provide the user the possibility to use a shortname, like &lt;strong>-i&lt;/strong> instead of like &lt;strong>&amp;ndash;input&lt;/strong>&lt;/li>
+&lt;li>&lt;strong>default values:&lt;/strong> sometimes the application can be run with a pre-defined set of parameters and the user has to
+override theme very rarely&lt;/li>
+&lt;/ul>
+&lt;p>These are just the bare minimum requirements for a CLI library. However CLIs can be very complex and their design should be thougth carefully if you want the user to engage in your application. For the readers that wants to know more please have a look at this &lt;a href="https://clig.dev/#foreword">excepional blog&lt;/a> about the CLI design, not only in python but seen from a more broad viewpoint&lt;/p>
+&lt;h2 id="common-python-libraries">Common Python Libraries&lt;/h2>
+&lt;p>Now is time to dive into implementing CLI in varius python libraries.&lt;!-- raw HTML omitted -->&lt;/p>
+&lt;h4 id="argparse">Argparse&lt;/h4>
+&lt;p>Argparse is the CLI library that is included in the python standard library. This is whay it is considered the de facto standard by most python developpers.
+Let&amp;rsquo;s look at what the implementation look like:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Argparse implementation&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+import argparse
+from app import resize
+parser = argparse.ArgumentParser(description=&amp;#39;Resize an image.&amp;#39;)
+parser.add_argument(&amp;#34;-i&amp;#34;, &amp;#34;--input&amp;#34;,
+help=&amp;#34;Input image path&amp;#34;,
+type=str,
+required=True)
+parser.add_argument(&amp;#34;--heigth&amp;#34;,
+help=&amp;#34;Height of the output image&amp;#34;,
+type=int,
+default=256)
+parser.add_argument(&amp;#34;--width&amp;#34;,
+help=&amp;#34;Width of the output image&amp;#34;,
+type=int,
+default=256)
+parser.add_argument(&amp;#34;-o&amp;#34;, &amp;#34;--output&amp;#34;,
+help=&amp;#34;Output image path&amp;#34;,
+type=str,
+required=True)
+if __name__ == &amp;#34;__main__&amp;#34;:
+cli_args = parser.parse_args()
+resize(cli_args.input, cli_args.heigth, cli_args.width, cli_args.output)
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>As you can see it is pretty easy to implement a CLI. You just instanciate an ArgumentParser object that permits you to register arguments.
+Then you use the same object with a dict-like syntax to retrieve the values of passed after the CLI parsing.
+The library is easy to use and support out of the box types specifications, default values, requirements and help messages.
+Actually you get also a pretty neat &amp;ndash;help command that formats your help message for you.&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Help output&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+python argparse_example.py --help
+usage: argparse_example.py [-h] -i INPUT [--heigth HEIGTH] [--width WIDTH] -o
+OUTPUT
+Resize an image.
+optional arguments:
+-h, --help show this help message and exit
+-i INPUT, --input INPUT
+Input image path
+--heigth HEIGTH Height of the output image
+--width WIDTH Width of the output image
+-o OUTPUT, --output OUTPUT
+Output image path
+Usage: click_example.py [OPTIONS]
+Resize an image.
+Options:
+-i, --input TEXT Input image path [required]
+-o, --output TEXT Output image path [required]
+--heigth INTEGER Height of the output image
+--width INTEGER Width of the output image
+--help Show this message and exit.
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>From a stylistic point of view I always avoid using positional arguments, instead I use only named parameters&lt;/p>
+&lt;p>From a stylistic point of view I always avoid using positional arguments, instead I use mostly named parameters.
+It is a 100% opinionated choice so feel free to think otherwise.
+But in my experience if your application needs more than one parameter you better use keywords to specify all the
+parameters to avoid mistakes in their order. Compare the following two implementations:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">bash&lt;/span>
+&lt;span class="collapsable-code__title">Keyword&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-bash" >&lt;code>
+python argparse_example.py -i reddit.jpg --heigth 100 --width 50 -o reddit_resize.jpg
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">bash&lt;/span>
+&lt;span class="collapsable-code__title">Positional&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-bash" >&lt;code>
+python argparse_example.py reddit.jpg 100 50 reddit_resize.jpg
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>Which is the clearest in your opinion? In the first one avery parameter is names and you are free to switch their order without any confusion.
+In the second you better remenber that the second parameter is the &lt;strong>heigth&lt;/strong> and the third is the &lt;strong>width&lt;/strong> because if you switch them
+you will end up with an image that has the opposite aspect ratio of the one that you had request.&lt;/p>
+&lt;h5 id="click">Click&lt;/h5>
+&lt;p>Click is another very common CLI library that you can find in varius projects. The idea beyond the library is to use decorators to naturally extend a function with a CLI interface.&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Click implementation&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+import click
+from PIL import Image
+@click.command()
+@click.option(&amp;#34;-i&amp;#34;, &amp;#34;--input&amp;#34;,
+help=&amp;#34;Input image path&amp;#34;,
+type=str,
+required=True)
+@click.option(&amp;#34;-o&amp;#34;, &amp;#34;--output&amp;#34;,
+help=&amp;#34;Output image path&amp;#34;,
+type=str,
+required=True)
+@click.option(&amp;#34;--heigth&amp;#34;,
+help=&amp;#34;Height of the output image&amp;#34;,
+type=int,
+default=256)
+@click.option(&amp;#34;--width&amp;#34;,
+help=&amp;#34;Width of the output image&amp;#34;,
+type=int,
+default=256)
+def resize(input: str, heigth: int, width: int, output: str) -&amp;gt; None:
+&amp;#34;&amp;#34;&amp;#34;Resize an image.&amp;#34;&amp;#34;&amp;#34;
+img = Image.open(input)
+img_resized = img.resize(width, heigth).convert(&amp;#39;RGB&amp;#39;)
+img_resized.save(output, &amp;#34;JPEG&amp;#34;)
+if __name__ == &amp;#34;__main__&amp;#34;:
+resize()
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>As you cas see in this case the decorators usage is used to natural extend the function.
+The syntax for the various arguments is very similar to argparse, what does it change is the way you apply it to the application code and how the
+parameters are retrieved.
+However, what about if you want to separate the application from the CLI, like implement them in separate namespaces and file.&lt;/p>
+&lt;p>In this case you have to use a cli function that encapsulate the &amp;ldquo;real&amp;rdquo; application function call.
+This is like a pattern that emerge if you have the &amp;ldquo;resize&amp;rdquo; function
+declared in another file/module. Here you have an example:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Click encapsulation&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+import click
+from app import resize
+@click.command()
+@click.option(&amp;#34;-i&amp;#34;, &amp;#34;--input&amp;#34;,
+help=&amp;#34;Input image path&amp;#34;,
+type=str,
+required=True)
+@click.option(&amp;#34;-o&amp;#34;, &amp;#34;--output&amp;#34;,
+help=&amp;#34;Output image path&amp;#34;,
+type=str,
+required=True)
+@click.option(&amp;#34;--heigth&amp;#34;,
+help=&amp;#34;Height of the output image&amp;#34;,
+type=int,
+default=256)
+@click.option(&amp;#34;--width&amp;#34;,
+help=&amp;#34;Width of the output image&amp;#34;,
+type=int,
+default=256)
+def cli(input, heigth, width, output):
+&amp;#34;&amp;#34;&amp;#34;Resize an image.&amp;#34;&amp;#34;&amp;#34;
+resize(input, heigth, width, output)
+if __name__ == &amp;#34;__main__&amp;#34;:
+cli()
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>As for argparse the &lt;strong>&amp;ndash;help&lt;/strong> option is already implemented and you get a very good results.&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Click Help&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+python click_example.py --help
+Usage: click_example.py [OPTIONS]
+Resize an image.
+Options:
+-i, --input TEXT Input image path [required]
+-o, --output TEXT Output image path [required]
+--heigth INTEGER Height of the output image
+--width INTEGER Width of the output image
+--help Show this message and exit.
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>It also worth noting that Click comes with no dependency on his own. I have to admit that this is my favourite library at the moment because it avoids the use of an intermidiate object like in argparse and the decorators feet perfectly their purpose in this case.&lt;/p>
+&lt;h5 id="typer">Typer&lt;/h5>
+&lt;p>Typer is one of the new kid in town concerning CLI libraries but it is gaining traction and comes from the same creators
+of the FastAPI project, that is also a great project if you are into web developpement. Here below is my CLI implementation:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Typer implementation&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+import typer
+from PIL import Image
+def resize(input: str = typer.Option(..., &amp;#34;-i&amp;#34;, help=&amp;#34;Input image path&amp;#34;),
+heigth: int = typer.Option(256, help=&amp;#34;Height of the output image&amp;#34;),
+width: int = typer.Option(256, help=&amp;#34;Width of the output image&amp;#34;),
+output: str = typer.Option(..., &amp;#34;-o&amp;#34;, help=&amp;#34;Output image path&amp;#34;)) -&amp;gt; None:
+&amp;#34;&amp;#34;&amp;#34;Resize an image.&amp;#34;&amp;#34;&amp;#34;
+img = Image.open(input)
+img_resized = img.resize(width, heigth).convert(&amp;#39;RGB&amp;#39;)
+img_resized.save(output, &amp;#34;JPEG&amp;#34;)
+if __name__ == &amp;#34;__main__&amp;#34;:
+typer.run(resize)
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>The idea behind the library is to use type annotations to specify the CLI interface. In this way some of the informations, like the name of the variables, are directly taken into account so you have less redundant code to write. It also explicitely make the difference between CLI keyword arguments, named &lt;strong>Option&lt;/strong>, and CLI positional arguments, named &lt;strong>Arguments&lt;/strong>. I happen to like this approch but, I have to pinpoint some possible issues:&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>__type hints can be hard: __ not all developpers are familiar with the type hints so the syntax can seems complex at first.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>__user friendlyness: __ the documentation is great, really really great but, it took me more time than I want to admit to figure out a simple example like this one. It was the first time that I used the library so a little bit of learning curve is normal however, in my opinion, the CLI code in this code is less obvious and readable.&lt;/p>
+&lt;p>For example how many of you spot that the three dots after the option means that the option is a required parameter? I guess none of you.&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;p>In this case I have only showed you the example when we want to directly apply the CLI to the application funtion.
+If we had to import the &amp;ldquo;resize&amp;rdquo; function from another module we would have to apply the CLI code on a wrapper function exactly like we have done in the first Click example. Typer also support out of the box an helper function and all the various features that we want in our CLI.&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Typer help&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+Usage: typer_example.py [OPTIONS]
+Resize an image.
+Options:
+-i TEXT Input image path [required]
+--heigth INTEGER Height of the output image [default: 256]
+--width INTEGER Width of the output image [default: 256]
+-o TEXT Output image path [required]
+--install-completion Install completion for the current shell.
+--show-completion Show completion for the current shell, to copy it or
+customize the installation.
+--help Show this message and exit.
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>It is worth noting that Typer it is based on Click and has no other dependencies.&lt;/p>
+&lt;h5 id="fire">Fire&lt;/h5>
+&lt;p>Fire is an open source project from Google, at first I tougth it was a new project but actually is 4 yars old!
+The idea is simply to not write code at all and genrate the CLI automatically. The implementation is more than trivial:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Fire implementation&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+import fire
+from app import resize
+if __name__ == &amp;#34;__main__&amp;#34;:
+fire.Fire(resize)
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>It cannot be more minimalist than this! However, my main concern with the library is that it is so trivial that seems impossible to add some very basic
+customization of the CLI like, shorter names, options, help strings and so on. Also the doc is very not up the the standard of the previous libraries.
+The main strength and use case is for very small projects, were quality does not matter much. By the way the help function generated is also very ugly:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Fire help&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+NAME
+fire_example.py
+SYNOPSIS
+fire_example.py IMAGE_PATH SIZE OUTPUT_PATH
+POSITIONAL ARGUMENTS
+IMAGE_PATH
+SIZE
+OUTPUT_PATH
+NOTES
+You can also use flags syntax for POSITIONAL ARGUMENTS
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;h5 id="fastcore">Fastcore&lt;/h5>
+&lt;p>First of all let me say that I love Fastcore. It is a great library that has lots of secrets gems and I think that is generally underrated.
+By the way I am a big fan of the work of the authors of Fastcore that are the same of the popular deep learning library Fast.ai.
+Here we will use only the subset of the library that permits to implement a CLI.
+Citing from the doc: &amp;lsquo;&amp;lsquo;it&amp;rsquo;s 50 lines of code! Basically, it&amp;rsquo;s just a little wrapper around argparse that uses modern Python
+features and some thoughtful defaults to get rid of the boilerplate.&amp;rsquo;&amp;rsquo; The approach taken is similar to typer in using type annottions
+to extend the function signature and get a CLI for free. However some features are missing:&lt;/p>
+&lt;ul>
+&lt;li>it seems to me that it is impossible to add shorter names&lt;/li>
+&lt;li>it is impossible by design to have keyword arguments that are required&lt;/li>
+&lt;li>the difference between a positional and keyword argument is handled by the &amp;ldquo;default&amp;rdquo; option in the Param object and this feature is
+not obvious from a quick look at the implementation.&lt;/li>
+&lt;/ul>
+&lt;p>The implementation look like this:&lt;/p>
+&lt;div class="collapsable-code">
+&lt;input id="1" type="checkbox" />
+&lt;label for="1">
+&lt;span class="collapsable-code__language">python&lt;/span>
+&lt;span class="collapsable-code__title">Fastcore implementation&lt;/span>
+&lt;span class="collapsable-code__toggle" data-label-expand="Show" data-label-collapse="Hide">&lt;/span>
+&lt;/label>
+&lt;pre class="language-python" >&lt;code>
+from fastcore.script import call_parse, Param
+from PIL import Image
+from typing import Tuple
+@call_parse
+def resize(image_path: Param(help=&amp;#34;Input image path&amp;#34;, type=str),
+heigth: Param(help=&amp;#34;heigth of the output image&amp;#34;, type=int, default=256),
+width: Param(help=&amp;#34;with of the output image&amp;#34;, type=int, default=256),
+output_path: Param(help=&amp;#34;Output image path&amp;#34;, type=str)
+) -&amp;gt; None:
+img = Image.open(image_path)
+img_resized = img.resize((heigth, width)).convert(&amp;#39;RGB&amp;#39;)
+img_resized.save(output_path, &amp;#34;JPEG&amp;#34;)
+&lt;/code>&lt;/pre>
+&lt;/div>
+&lt;p>I leave the help function output out since it is pretty standard. I have a very simple opinion on this CLI library that
+for me it has pretty similar to Typer in the implementation and pro/cons but, Typer is better documented more used and has some
+extra nice functionalities that here are missing (short names, real optionality etc). So if you are in for the typed minimalist approach
+go with Typer but please have a quick look at the other fastcore functionalities&lt;/p>
+&lt;h2 id="conclusions">Conclusions&lt;/h2>
+&lt;p>At the end of the day the choice between these libraries is mostly based on each different taste. But if you are in a hurry and
+you do not want to play around and make your own opinion here is my two cents rule.
+If you are working on a serious project and you plan to support users go with Click. The library has all the classical CLI features it is easy to use and
+the documentatio is well written. It is dependencies free and lots of users (stack overflow always help).
+On the opposite side if you really want a minimalist approach on a personal project with some friends consider Fire. It is a decent library considering
+that it is basically a one liner to implement.&lt;/p>
+&lt;h2 id="going-deeper">Going deeper&lt;/h2>
+&lt;p>As already said one of the best resources that I found reagerding CLI design is this one [clig.dev]
+Here you have the links for the various documentations of the libraries used:&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://docs.python.org/3/library/argparse.html">argparse&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://click.palletsprojects.com/en/7.x/why/#why-not-argparse">click&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://github.com/google/python-fire">fire&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://typer.tiangolo.com/tutorial/">typer&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;p>I have not touched the subjects but some of the above libraries also support multiple commands and more advanced uses.
+All the codes examples used here can be found in &lt;a href="https://github.com/appanacca/python_cli_examples">this repo&lt;/a>.&lt;/p></content></item></channel></rss>
